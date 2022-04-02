@@ -138,6 +138,22 @@ fn diff_public_items_markdown() {
         .success();
 }
 
+#[serial]
+#[test]
+fn diff_public_items_markdown_no_changes() {
+    ensure_test_crate_is_cloned();
+
+    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.current_dir(test_crate_path());
+    cmd.arg("--output-format=markdown");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.assert()
+        .stdout("(No changes to the public API)\n")
+        .success();
+}
+
 fn ensure_test_crate_is_cloned() {
     if !test_crate_path().exists() {
         clone_test_crate();
