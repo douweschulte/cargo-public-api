@@ -88,6 +88,20 @@ fn diff_public_items_with_color() {
         .success();
 }
 
+#[test]
+fn list_public_items_markdown() {
+    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.arg("--output-format=markdown");
+    cmd.assert()
+        .stdout(
+            "## Public API\n\
+             * `pub fn cargo_public_items::for_self_testing_purposes_please_ignore()`\n\
+             * `pub mod cargo_public_items`\n\
+             ",
+        )
+        .success();
+}
+
 #[serial]
 #[test]
 fn diff_public_items_markdown() {
