@@ -97,6 +97,7 @@ fn list_public_items_markdown() {
             "## Public API\n\
              * `pub fn cargo_public_items::for_self_testing_purposes_please_ignore()`\n\
              * `pub mod cargo_public_items`\n\
+             \n\
              ",
         )
         .success();
