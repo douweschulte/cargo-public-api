@@ -64,16 +64,25 @@ fn diff_public_items_with_color() {
         .stdout(
             "Removed items from the public API\n\
              =================================\n\
-             \x1b[31mpub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\x1b[0m\n\
+             \x1b[31mpub fn public_items::PublicItem::hash<__H: $crate::hash::Hasher>(&self, state: &mut __H) -> ()\x1b[0m\n\
+             \x1b[31mpub fn public_items::diff::PublicItemsDiff::print_with_headers(&self, w: &mut impl std::io::Write, header_removed: &str, header_changed: &str, header_added: &str) -> std::io::Result<()>\x1b[0m\n\
              \n\
              Changed items in the public API\n\
              ===============================\n\
-             (none)\n\
+             \x1b[31mpub fn public_items::PublicItem::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result\x1b[0m\n\
+             \x1b[32mpub fn public_items::PublicItem::fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result\x1b[0m\n\
+             \x1b[31mpub fn public_items::diff::PublicItemsDiff::between(old: Vec<PublicItem>, new: Vec<PublicItem>) -> Self\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::PublicItemsDiff::between(old_items: Vec<PublicItem>, new_items: Vec<PublicItem>) -> Self\x1b[0m\n\
              \n\
              Added items to the public API\n\
              =============================\n\
-             \x1b[32mpub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<Vec<String>>\x1b[0m\n\
-             \n\
+             \x1b[32mpub fn public_items::diff::ChangedPublicItem::cmp(&self, other: &ChangedPublicItem) -> $crate::cmp::Ordering\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::ChangedPublicItem::eq(&self, other: &ChangedPublicItem) -> bool\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::ChangedPublicItem::ne(&self, other: &ChangedPublicItem) -> bool\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::ChangedPublicItem::partial_cmp(&self, other: &ChangedPublicItem) -> $crate::option::Option<$crate::cmp::Ordering>\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::PublicItemsDiff::eq(&self, other: &PublicItemsDiff) -> bool\x1b[0m\n\
+             \x1b[32mpub fn public_items::diff::PublicItemsDiff::ne(&self, other: &PublicItemsDiff) -> bool\x1b[0m\n\
+            \n\
             ",
         )
         .success();
