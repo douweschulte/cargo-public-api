@@ -20,23 +20,26 @@ fn list_public_items_explicit_manifest_path() {
 fn diff_public_items() {
     ensure_test_crate_is_cloned();
 
-    let mut test_crate_manifest_path = test_crate_path();
-    test_crate_manifest_path.push("Cargo.toml");
-
     let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.current_dir(test_crate_path());
     cmd.arg("--color=never");
-    cmd.arg("--manifest-path");
-    cmd.arg(test_crate_manifest_path);
     cmd.arg("--diff-git-checkouts");
     cmd.arg("v0.0.4");
     cmd.arg("v0.0.5");
     cmd.assert()
         .stdout(
-            "## Public API\n\
-             * `pub fn cargo_public_items::for_self_testing_purposes_please_ignore()`\n\
-             * `pub mod cargo_public_items`\n\
-             \n\
-             ",
+            "Removed items from the public API\n\
+            =================================\n\
+            -pub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\n\
+            \n\
+            Changed items in the public API\n\
+            ===============================\n\
+            (none)\n\
+            \n\
+            Added items to the public API\n\
+            =============================\n\
+            +pub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> R\n\
+            ",
         )
         .success();
 }
