@@ -53,3 +53,17 @@ fn current_dir_and<P: AsRef<Path>>(path: P) -> PathBuf {
     cur_dir.push(path);
     cur_dir
 }
+
+fn clone_test_crate() {
+    let mut git = std::process::Command::new("git");
+    git.arg("clone");
+    git.arg("https://github.com/Enselic/public_items.git");
+    git.arg(test_crate_path());
+    git.spawn().unwrap().wait().unwrap().success()
+}
+
+fn test_crate_path() -> PathBuf {
+    let path = PathBuf::from(option_env!("CARGO_TARGET_DIR").unwrap_or("/tmp"));
+    path.push("cargo-public-items-test-repo");
+    path
+}
