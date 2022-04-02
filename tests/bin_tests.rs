@@ -46,7 +46,7 @@ fn diff_public_items() {
 }
 
 #[test]
-fn diff_public_items_color() {
+fn diff_public_items_with_color() {
     ensure_test_crate_is_cloned();
 
     let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
