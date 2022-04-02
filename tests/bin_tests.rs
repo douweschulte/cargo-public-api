@@ -88,6 +88,45 @@ fn diff_public_items_with_color() {
         .success();
 }
 
+#[serial]
+#[test]
+fn diff_public_items_markdown() {
+    ensure_test_crate_is_cloned();
+
+    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.current_dir(test_crate_path());
+    cmd.arg("--output-format=markdown");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.6.0");
+    cmd.arg("v0.7.1");
+    cmd.assert()
+        .stdout(
+            "Removed items from the public API\n\
+             =================================\n\
+             -pub fn public_items::PublicItem::hash<__H: $crate::hash::Hasher>(&self, state: &mut __H) -> ()\n\
+             -pub fn public_items::diff::PublicItemsDiff::print_with_headers(&self, w: &mut impl std::io::Write, header_removed: &str, header_changed: &str, header_added: &str) -> std::io::Result<()>\n\
+             \n\
+             Changed items in the public API\n\
+             ===============================\n\
+             -pub fn public_items::PublicItem::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result\n\
+             +pub fn public_items::PublicItem::fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result\n\
+             -pub fn public_items::diff::PublicItemsDiff::between(old: Vec<PublicItem>, new: Vec<PublicItem>) -> Self\n\
+             +pub fn public_items::diff::PublicItemsDiff::between(old_items: Vec<PublicItem>, new_items: Vec<PublicItem>) -> Self\n\
+             \n\
+             Added items to the public API\n\
+             =============================\n\
+             +pub fn public_items::diff::ChangedPublicItem::cmp(&self, other: &ChangedPublicItem) -> $crate::cmp::Ordering\n\
+             +pub fn public_items::diff::ChangedPublicItem::eq(&self, other: &ChangedPublicItem) -> bool\n\
+             +pub fn public_items::diff::ChangedPublicItem::ne(&self, other: &ChangedPublicItem) -> bool\n\
+             +pub fn public_items::diff::ChangedPublicItem::partial_cmp(&self, other: &ChangedPublicItem) -> $crate::option::Option<$crate::cmp::Ordering>\n\
+             +pub fn public_items::diff::PublicItemsDiff::eq(&self, other: &PublicItemsDiff) -> bool\n\
+             +pub fn public_items::diff::PublicItemsDiff::ne(&self, other: &PublicItemsDiff) -> bool\n\
+            \n\
+            ",
+        )
+        .success();
+}
+
 fn ensure_test_crate_is_cloned() {
     if !test_crate_path().exists() {
         clone_test_crate();
