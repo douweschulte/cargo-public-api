@@ -58,8 +58,8 @@ fn diff_public_items_with_color() {
     cmd.current_dir(test_crate_path());
     cmd.arg("--color=always");
     cmd.arg("--diff-git-checkouts");
-    cmd.arg("v0.0.4");
-    cmd.arg("v0.0.5");
+    cmd.arg("v0.6.0");
+    cmd.arg("v0.7.1");
     cmd.assert()
         .stdout(
             "Removed items from the public API\n\
