@@ -59,7 +59,7 @@ fn diff_public_items_color() {
         .stdout(
             "Removed items from the public API\n\
              =================================\n\
-             -pub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\n\
+             \x1b[31mpub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\x1b[0m\n\
              \n\
              Changed items in the public API\n\
              ===============================\n\
@@ -67,7 +67,7 @@ fn diff_public_items_color() {
              \n\
              Added items to the public API\n\
              =============================\n\
-             +pub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<Vec<String>>\n\
+             \x1b[32mpub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<Vec<String>>\x1b[0m\n\
              \n\
             ",
         )
