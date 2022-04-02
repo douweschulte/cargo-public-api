@@ -20,8 +20,13 @@ fn list_public_items_explicit_manifest_path() {
 fn diff_public_items() {
     ensure_test_crate_is_cloned();
 
+    let mut test_crate_manifest_path = test_crate_path();
+    test_crate_manifest_path.push("Cargo.toml");
+
     let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
     cmd.arg("--color=never");
+    cmd.arg("--manifest-path");
+    cmd.arg(test_crate_manifest_path);
     cmd.arg("--diff-git-checkouts");
     cmd.arg("v0.0.4");
     cmd.arg("v0.0.5");
