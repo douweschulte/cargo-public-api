@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
+use serial_test::serial;
 
 #[test]
 fn list_public_items() {
@@ -17,6 +18,7 @@ fn list_public_items_explicit_manifest_path() {
 }
 
 #[test]
+#[serial] // Serially run tests that touch the test crate git repo, otherwise we will get errors about '.git/index.lock\': File exists
 fn diff_public_items() {
     ensure_test_crate_is_cloned();
 
@@ -46,6 +48,7 @@ fn diff_public_items() {
 }
 
 #[test]
+#[serial] // Serially run tests that touch the test crate git repo, otherwise we will get errors about '.git/index.lock\': File exists
 fn diff_public_items_with_color() {
     ensure_test_crate_is_cloned();
 
