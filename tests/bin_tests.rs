@@ -9,6 +9,22 @@ fn list_public_items() {
 }
 
 #[test]
+fn list_public_items_markdown() {
+    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.arg("--output-format");
+    cmd.arg("markdown");
+    cmd.assert()
+        .stdout(
+            "## Public API\n\
+             * `pub fn cargo_public_items::for_self_testing_purposes_please_ignore()`\n\
+             * `pub mod cargo_public_items`\n\
+             \n\
+             ",
+        )
+        .success();
+}
+
+#[test]
 fn list_public_items_explicit_manifest_path() {
     let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
     cmd.arg("--manifest-path");
@@ -59,11 +75,11 @@ fn clone_test_crate() {
     git.arg("clone");
     git.arg("https://github.com/Enselic/public_items.git");
     git.arg(test_crate_path());
-    git.spawn().unwrap().wait().unwrap().success()
+    assert!(git.spawn().unwrap().wait().unwrap().success());
 }
 
 fn test_crate_path() -> PathBuf {
-    let path = PathBuf::from(option_env!("CARGO_TARGET_DIR").unwrap_or("/tmp"));
+    let mut path = PathBuf::from(option_env!("CARGO_TARGET_DIR").unwrap_or("/tmp"));
     path.push("cargo-public-items-test-repo");
     path
 }
