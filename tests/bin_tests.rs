@@ -29,16 +29,17 @@ fn diff_public_items() {
     cmd.assert()
         .stdout(
             "Removed items from the public API\n\
-            =================================\n\
-            -pub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\n\
-            \n\
-            Changed items in the public API\n\
-            ===============================\n\
-            (none)\n\
-            \n\
-            Added items to the public API\n\
-            =============================\n\
-            +pub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> R\n\
+             =================================\n\
+             -pub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\n\
+             \n\
+             Changed items in the public API\n\
+             ===============================\n\
+             (none)\n\
+             \n\
+             Added items to the public API\n\
+             =============================\n\
+             +pub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<Vec<String>>\n\
+             \n\
             ",
         )
         .success();
