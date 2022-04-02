@@ -9,10 +9,22 @@ fn list_public_items() {
 }
 
 #[test]
-fn list_public_items_markdown() {
+fn list_public_items_explicit_manifest_path() {
     let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
-    cmd.arg("--output-format");
-    cmd.arg("markdown");
+    cmd.arg("--manifest-path");
+    cmd.arg(current_dir_and("Cargo.toml"));
+    assert_presence_of_own_library_items(cmd);
+}
+
+#[test]
+fn diff_public_items() {
+    ensure_test_crate_is_cloned();
+
+    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
+    cmd.arg("--color=never");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.0.4");
+    cmd.arg("v0.0.5");
     cmd.assert()
         .stdout(
             "## Public API\n\
@@ -24,12 +36,10 @@ fn list_public_items_markdown() {
         .success();
 }
 
-#[test]
-fn list_public_items_explicit_manifest_path() {
-    let mut cmd = Command::cargo_bin("cargo-public-items").unwrap();
-    cmd.arg("--manifest-path");
-    cmd.arg(current_dir_and("Cargo.toml"));
-    assert_presence_of_own_library_items(cmd);
+fn ensure_test_crate_is_cloned() {
+    if !test_crate_path().exists() {
+        clone_test_crate();
+    }
 }
 
 #[test]
