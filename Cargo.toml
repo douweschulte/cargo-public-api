@@ -1,11 +1,11 @@
 [package]
-description = "List and diff the public API of Rust library crates between releases and commits. Allows you to detect breaking changes or semver violations."
+description = "I am in the process of renaming `cargo-public-items` to `cargo-public-api`. You can track progress here: https://github.com/Enselic/cargo-public-items/issues/17"
 documentation = "https://docs.rs/cargo-public-api"
 edition = "2021"
-homepage = "https://github.com/Enselic/cargo-public-api"
+homepage = "https://github.com/Enselic/cargo-public-items"
 license = "MIT"
 name = "cargo-public-api"
-repository = "https://github.com/Enselic/cargo-public-api"
+repository = "https://github.com/Enselic/cargo-public-items"
 version = "0.7.2"
 
 [dependencies]
