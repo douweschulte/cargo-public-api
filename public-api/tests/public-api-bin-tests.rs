@@ -1,14 +1,17 @@
+// deny in CI, only warn here
+#![warn(clippy::all, clippy::pedantic)]
+
 use std::{io::BufRead, str::from_utf8};
 
 use assert_cmd::Command;
 use public_api::MINIMUM_RUSTDOC_JSON_VERSION;
 
-mod utils;
-use serial_test::serial;
-use utils::rustdoc_json_path_for_crate;
+// rust-analyzer bug: https://github.com/rust-lang/rust-analyzer/issues/9173
+#[path = "../../test-utils/src/lib.rs"]
+mod test_utils;
+use test_utils::rustdoc_json_path_for_crate;
 
 #[test]
-#[serial] // Writing and reading rustdoc JSON to/from file-system; must run one test at a time
 fn print_public_api() {
     cmd_with_rustdoc_json_args(&["../test-apis/comprehensive_api"], |mut cmd| {
         cmd.assert()
@@ -19,7 +22,6 @@ fn print_public_api() {
 }
 
 #[test]
-#[serial]
 fn print_public_api_with_blanket_implementations() {
     cmd_with_rustdoc_json_args(&["../test-apis/example_api-v0.2.0"], |mut cmd| {
         cmd.arg("--with-blanket-implementations");
@@ -33,7 +35,6 @@ fn print_public_api_with_blanket_implementations() {
 }
 
 #[test]
-#[serial]
 fn print_diff() {
     cmd_with_rustdoc_json_args(
         &[
@@ -66,7 +67,6 @@ Added:
 }
 
 #[test]
-#[serial]
 fn print_diff_reversed() {
     cmd_with_rustdoc_json_args(
         &[
@@ -99,7 +99,6 @@ Added:
 }
 
 #[test]
-#[serial]
 fn print_no_diff() {
     cmd_with_rustdoc_json_args(
         &[
@@ -129,7 +128,7 @@ Added:
 /// Uses a bash one-liner to test that public-api gracefully handles
 /// `std::io::ErrorKind::BrokenPipe`
 #[test]
-#[serial]
+#[cfg_attr(target_family = "windows", ignore)] // Because test uses bash
 fn broken_pipe() {
     // Use the JSON for a somewhat large API so the pipe has time to become closed
     // before all output has been written to stdout
@@ -180,6 +179,16 @@ fn no_args_shows_help() {
 }
 
 #[test]
+fn print_minimum_rustdoc_json_version() {
+    let mut cmd = Command::cargo_bin("public-api").unwrap();
+    cmd.arg("--print-minimum-rustdoc-json-version");
+    cmd.assert()
+        .stdout(format!("{}\n", MINIMUM_RUSTDOC_JSON_VERSION))
+        .stderr("")
+        .success();
+}
+
+#[test]
 fn too_many_args_shows_help() {
     let mut cmd = Command::cargo_bin("public-api").unwrap();
     cmd.args(&["too", "many", "args"]);
@@ -205,7 +214,7 @@ If you insist of using this low-level utility and thin wrapper, you run it like 
 
 where RUSTDOC_JSON_FILE is the path to the output of
 
-    RUSTDOCFLAGS='-Z unstable-options --output-format json' cargo +nightly doc --lib --no-deps
+    cargo +nightly rustdoc --lib -- -Z unstable-options --output-format json
 
 which you can find in
 

@@ -1,33 +1,120 @@
-use std::path::{Path, PathBuf};
+// deny in CI, only warn here
+#![warn(clippy::all, clippy::pedantic)]
 
+//! To update expected output it is in many cases sufficient to run
+//! ```bash
+//! ./scripts/bless-expected-output-for-tests.sh
+//! ```
+
+use std::ffi::OsStr;
+use std::io::Write;
+use std::{
+    fs::OpenOptions,
+    path::{Path, PathBuf},
+};
+
+use assert_cmd::assert::Assert;
 use assert_cmd::Command;
-use serial_test::serial;
+use predicates::str::contains;
 
-#[serial]
+// rust-analyzer bug: https://github.com/rust-lang/rust-analyzer/issues/9173
+#[path = "../../test-utils/src/lib.rs"]
+mod test_utils;
+use test_utils::rustdoc_json_path_for_crate;
+
+#[path = "../src/git_utils.rs"] // Say NO to copy-paste!
+mod git_utils;
+
+// FIXME: This tests is ignored in CI due to some unknown issue with windows
 #[test]
+#[cfg_attr(all(target_family = "windows", in_ci), ignore)]
 fn list_public_items() {
-    let cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    assert_presence_of_own_library_items(cmd);
+    let mut cmd = TestCmd::new();
+    cmd.assert()
+        .stdout(include_str!(
+            "../../public-api/tests/expected-output/example_api-v0.3.0.txt"
+        ))
+        .success();
 }
 
-#[serial]
 #[test]
-fn custom_toolchain() {
+fn list_public_items_with_lint_error() {
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.args(["--rustdoc-json-toolchain", "+nightly"]);
-    assert_presence_of_own_library_items(cmd);
+    cmd.args(["--manifest-path", "../test-apis/lint_error/Cargo.toml"]);
+    cmd.assert()
+        .stdout(include_str!("./expected-output/lint_error_list.txt"))
+        .success();
 }
 
-#[serial]
+// FIXME: This tests is ignored in CI due to some unknown issue with windows
 #[test]
+#[cfg_attr(all(target_family = "windows", in_ci), ignore)]
+fn custom_toolchain() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--toolchain");
+    cmd.arg("+nightly");
+    cmd.assert()
+        .stdout(include_str!(
+            "../../public-api/tests/expected-output/example_api-v0.3.0.txt"
+        ))
+        .success();
+}
+
+// FIXME: This tests is ignored in CI due to some unknown issue with windows
+#[test]
+#[cfg_attr(all(target_family = "windows", in_ci), ignore)]
 fn list_public_items_explicit_manifest_path() {
+    let test_repo = TestRepo::new();
+    let mut test_repo_manifest = PathBuf::from(test_repo.path());
+    test_repo_manifest.push("Cargo.toml");
+
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
     cmd.arg("--manifest-path");
-    cmd.arg(current_dir_and("Cargo.toml"));
-    assert_presence_of_own_library_items(cmd);
+    cmd.arg(&test_repo_manifest);
+    cmd.assert()
+        .stdout(include_str!(
+            "../../public-api/tests/expected-output/example_api-v0.3.0.txt"
+        ))
+        .success();
 }
 
-#[serial]
+/// Make sure we can run the tool with a specified package from a virtual
+/// manifest. Use the smallest crate in our workspace to make tests run fast
+#[test]
+fn list_public_items_via_package_spec() {
+    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+    cmd.arg("--package");
+    cmd.arg("rustdoc-json");
+    cmd.assert()
+        .stdout(include_str!("./expected-output/rustdoc_json_list.txt"))
+        .success();
+}
+
+#[test]
+fn target_arg() {
+    // A bit of a hack but similar to how rustc bootstrap script does it:
+    // https://github.com/rust-lang/rust/blob/1ce51982b8550c782ded466c1abff0d2b2e21c4e/src/bootstrap/bootstrap.py#L207-L219
+    fn get_host_target_triple() -> String {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.arg("-c");
+        cmd.arg("rustc -vV | sed -n 's/host: \\(.*\\)/\\1/gp'");
+        let stdout = cmd.output().unwrap().stdout;
+        String::from_utf8_lossy(&stdout)
+            .to_string()
+            .trim()
+            .to_owned()
+    }
+
+    // Make sure to use a separate and temporary repo so that this test does not
+    // accidentally pass due to files from other tests lying around
+    let mut cmd = TestCmd::new();
+    cmd.arg("--target");
+    cmd.arg(get_host_target_triple());
+    cmd.assert()
+        .stdout(include_str!("./expected-output/test_repo_api_latest.txt"))
+        .success();
+}
+
 #[test]
 fn virtual_manifest_error() {
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
@@ -35,216 +122,311 @@ fn virtual_manifest_error() {
     cmd.arg(current_dir_and("tests/virtual-manifest/Cargo.toml"));
     cmd.assert()
         .stdout("")
-        .stderr(predicates::str::contains(
+        .stderr(contains(
             "Listing or diffing the public API of an entire workspace is not supported.",
         ))
         .failure();
 }
 
-// We must serially run tests that touch the test crate git repo to prevent
-// ".git/index.lock: File exists"-errors.
-#[serial]
 #[test]
 fn diff_public_items() {
-    ensure_test_crate_is_cloned();
-
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.current_dir(test_crate_path());
+    let mut cmd = TestCmd::new();
+    let test_repo_path = cmd.test_repo_path().to_owned();
+    let branch_before = git_utils::current_branch(&test_repo_path).unwrap().unwrap();
     cmd.arg("--color=never");
-    cmd.arg("--diff-git-checkouts");
-    cmd.arg("v0.0.4");
-    cmd.arg("v0.0.5");
-    cmd.assert()
-        .stdout(
-            "Removed items from the public API\n\
-             =================================\n\
-             -pub fn public_items::from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<HashSet<String>>\n\
-             \n\
-             Changed items in the public API\n\
-             ===============================\n\
-             (none)\n\
-             \n\
-             Added items to the public API\n\
-             =============================\n\
-             +pub fn public_items::sorted_public_items_from_rustdoc_json_str(rustdoc_json_str: &str) -> Result<Vec<String>>\n\
-             \n\
-            ",
-        )
-        .success();
-}
-
-#[serial]
-#[test]
-fn diff_public_items_with_color() {
-    ensure_test_crate_is_cloned();
-
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.current_dir(test_crate_path());
-    cmd.arg("--color=always");
-    cmd.arg("--diff-git-checkouts");
-    cmd.arg("v0.6.0");
-    cmd.arg("v0.7.1");
-
-    // To update expected output, run this:
-    //
-    //   cd target/tmp/cargo-public-api-test-repo
-    //   cargo run --bin cargo-public-api --manifest-path ../../../Cargo.toml -- --color=always --diff-git-checkouts v0.6.0 v0.7.1 | sed 's/\x1b/\\x1b/g'
-    cmd.assert()
-        .stdout("Removed items from the public API
-=================================
--\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[32mPublicItem\x1b[0m::\x1b[33mhash\x1b[0m<\x1b[32m__H\x1b[0m: \x1b[36m$crate\x1b[0m::\x1b[36mhash\x1b[0m::\x1b[32mHasher\x1b[0m>(&\x1b[34mself\x1b[0m, \x1b[36mstate\x1b[0m: &\x1b[34mmut\x1b[0m \x1b[32m__H\x1b[0m) -> ()
--\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mPublicItemsDiff\x1b[0m::\x1b[33mprint_with_headers\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mw\x1b[0m: &\x1b[34mmut\x1b[0m \x1b[34mimpl\x1b[0m \x1b[36mstd\x1b[0m::\x1b[36mio\x1b[0m::\x1b[32mWrite\x1b[0m, \x1b[36mheader_removed\x1b[0m: &\x1b[32mstr\x1b[0m, \x1b[36mheader_changed\x1b[0m: &\x1b[32mstr\x1b[0m, \x1b[36mheader_added\x1b[0m: &\x1b[32mstr\x1b[0m) -> \x1b[36mstd\x1b[0m::\x1b[36mio\x1b[0m::\x1b[32mResult\x1b[0m<()>
-
-Changed items in the public API
-===============================
--\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[32mPublicItem\x1b[0m::\x1b[33mfmt\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mf\x1b[0m: &\x1b[34mmut\x1b[0m \x1b[1;48;5;52;38;5;9m$crate\x1b[0m::\x1b[36mfmt\x1b[0m::\x1b[32mFormatter\x1b[0m<\x1b[34m'_\x1b[0m>) -> \x1b[1;48;5;52;38;5;9m$crate\x1b[0m::\x1b[36mfmt\x1b[0m::\x1b[32mResult\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[32mPublicItem\x1b[0m::\x1b[33mfmt\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mf\x1b[0m: &\x1b[34mmut\x1b[0m \x1b[1;48;5;22;38;5;10mstd\x1b[0m::\x1b[36mfmt\x1b[0m::\x1b[32mFormatter\x1b[0m<\x1b[34m'_\x1b[0m>) -> \x1b[1;48;5;22;38;5;10mstd\x1b[0m::\x1b[36mfmt\x1b[0m::\x1b[32mResult\x1b[0m
--\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mPublicItemsDiff\x1b[0m::\x1b[33mbetween\x1b[0m(\x1b[1;48;5;52;38;5;9mold\x1b[0m: \x1b[32mVec\x1b[0m<\x1b[32mPublicItem\x1b[0m>, \x1b[1;48;5;52;38;5;9mnew\x1b[0m: \x1b[32mVec\x1b[0m<\x1b[32mPublicItem\x1b[0m>) -> \x1b[32mSelf\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mPublicItemsDiff\x1b[0m::\x1b[33mbetween\x1b[0m(\x1b[1;48;5;22;38;5;10mold_items\x1b[0m: \x1b[32mVec\x1b[0m<\x1b[32mPublicItem\x1b[0m>, \x1b[1;48;5;22;38;5;10mnew_items\x1b[0m: \x1b[32mVec\x1b[0m<\x1b[32mPublicItem\x1b[0m>) -> \x1b[32mSelf\x1b[0m
-
-Added items to the public API
-=============================
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mChangedPublicItem\x1b[0m::\x1b[33mcmp\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mChangedPublicItem\x1b[0m) -> \x1b[36m$crate\x1b[0m::\x1b[36mcmp\x1b[0m::\x1b[32mOrdering\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mChangedPublicItem\x1b[0m::\x1b[33meq\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mChangedPublicItem\x1b[0m) -> \x1b[32mbool\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mChangedPublicItem\x1b[0m::\x1b[33mne\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mChangedPublicItem\x1b[0m) -> \x1b[32mbool\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mChangedPublicItem\x1b[0m::\x1b[33mpartial_cmp\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mChangedPublicItem\x1b[0m) -> \x1b[36m$crate\x1b[0m::\x1b[36moption\x1b[0m::\x1b[32mOption\x1b[0m<\x1b[36m$crate\x1b[0m::\x1b[36mcmp\x1b[0m::\x1b[32mOrdering\x1b[0m>
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mPublicItemsDiff\x1b[0m::\x1b[33meq\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mPublicItemsDiff\x1b[0m) -> \x1b[32mbool\x1b[0m
-+\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mpublic_items\x1b[0m::\x1b[36mdiff\x1b[0m::\x1b[32mPublicItemsDiff\x1b[0m::\x1b[33mne\x1b[0m(&\x1b[34mself\x1b[0m, \x1b[36mother\x1b[0m: &\x1b[32mPublicItemsDiff\x1b[0m) -> \x1b[32mbool\x1b[0m
-
-",
-        )
-        .success();
-}
-
-#[serial]
-#[test]
-fn list_public_items_with_color() {
-    ensure_test_crate_is_cloned();
-
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.arg("--color=always");
-
-    // To update expected output, run this:
-    //
-    //   cargo run -- --color=always | sed 's/\x1b/\\x1b/g'
-    cmd.assert()
-        .stdout("\x1b[34mpub\x1b[0m \x1b[34mfn\x1b[0m \x1b[36mcargo_public_api\x1b[0m::\x1b[33mfor_self_testing_purposes_please_ignore\x1b[0m()
-\x1b[34mpub\x1b[0m \x1b[34mmod\x1b[0m \x1b[36mcargo_public_api\x1b[0m
-",
-        )
-        .success();
-}
-
-#[serial]
-#[test]
-fn diff_public_items_markdown() {
-    ensure_test_crate_is_cloned();
-
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.current_dir(test_crate_path());
-    cmd.arg("--output-format=markdown");
-    cmd.arg("--diff-git-checkouts");
-    cmd.arg("v0.6.0");
-    cmd.arg("v0.7.1");
-    cmd.assert()
-        .stdout(r"## Removed items from the public API
-* `pub fn public_items::PublicItem::hash<__H: $crate::hash::Hasher>(&self, state: &mut __H) -> ()`
-* `pub fn public_items::diff::PublicItemsDiff::print_with_headers(&self, w: &mut impl std::io::Write, header_removed: &str, header_changed: &str, header_added: &str) -> std::io::Result<()>`
-
-## Changed items in the public API
-* `pub fn public_items::PublicItem::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result` changed to
-  `pub fn public_items::PublicItem::fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result`
-* `pub fn public_items::diff::PublicItemsDiff::between(old: Vec<PublicItem>, new: Vec<PublicItem>) -> Self` changed to
-  `pub fn public_items::diff::PublicItemsDiff::between(old_items: Vec<PublicItem>, new_items: Vec<PublicItem>) -> Self`
-
-## Added items to the public API
-* `pub fn public_items::diff::ChangedPublicItem::cmp(&self, other: &ChangedPublicItem) -> $crate::cmp::Ordering`
-* `pub fn public_items::diff::ChangedPublicItem::eq(&self, other: &ChangedPublicItem) -> bool`
-* `pub fn public_items::diff::ChangedPublicItem::ne(&self, other: &ChangedPublicItem) -> bool`
-* `pub fn public_items::diff::ChangedPublicItem::partial_cmp(&self, other: &ChangedPublicItem) -> $crate::option::Option<$crate::cmp::Ordering>`
-* `pub fn public_items::diff::PublicItemsDiff::eq(&self, other: &PublicItemsDiff) -> bool`
-* `pub fn public_items::diff::PublicItemsDiff::ne(&self, other: &PublicItemsDiff) -> bool`
-
-",
-        )
-        .success();
-}
-
-#[serial]
-#[test]
-fn diff_public_items_markdown_no_changes() {
-    ensure_test_crate_is_cloned();
-
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.current_dir(test_crate_path());
-    cmd.arg("--output-format=markdown");
     cmd.arg("--diff-git-checkouts");
     cmd.arg("v0.2.0");
     cmd.arg("v0.3.0");
     cmd.assert()
-        .stdout("(No changes to the public API)\n")
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.2.0_to_v0.3.0.txt"
+        ))
+        .success();
+    let branch_after = git_utils::current_branch(&test_repo_path).unwrap().unwrap();
+
+    // Diffing does a git checkout of the commits to diff. Afterwards the
+    // original branch shall be restored to minimize user disturbance.
+    assert_eq!(branch_before, branch_after);
+}
+
+/// Test that the mechanism to restore the original git branch works even if
+/// there is no current branch
+#[test]
+fn diff_public_items_detached_head() {
+    let test_repo = TestRepo::new();
+
+    // Detach HEAD
+    let path = test_repo.path();
+    git_utils::git_checkout("v0.1.1", path, true).unwrap();
+    assert_eq!(None, git_utils::current_branch(path).unwrap());
+    let before = git_utils::current_commit(path).unwrap();
+
+    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+    cmd.current_dir(path);
+    cmd.arg("--color=never");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.assert()
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.2.0_to_v0.3.0.txt"
+        ))
+        .success();
+
+    let after = git_utils::current_commit(path).unwrap();
+    assert_eq!(before, after);
+}
+
+/// Test that diffing fails if the git tree is dirty
+#[test]
+#[cfg_attr(target_family = "windows", ignore)]
+fn diff_public_items_with_dirty_tree_fails() {
+    let test_repo = TestRepo::new();
+
+    // Make the tree dirty by appending a comment to src/lib.rs
+    let mut lib_rs_path = test_repo.path.path().to_owned();
+    lib_rs_path.push("src/lib.rs");
+
+    let mut lib_rs = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .open(&lib_rs_path)
+        .unwrap();
+
+    writeln!(lib_rs, "// Make git tree dirty").unwrap();
+
+    // Make sure diffing does not destroy uncommitted data!
+    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+    cmd.current_dir(&test_repo.path);
+    cmd.arg("--color=never");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.assert()
+        .stderr(contains(
+            "Your local changes to the following files would be overwritten by checkout",
+        ))
+        .failure();
+}
+
+#[test]
+fn deny_when_not_diffing() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--deny=all");
+    cmd.assert()
+        .stderr(contains("`--deny` can only be used when diffing"))
+        .failure();
+}
+
+#[test]
+fn deny_added_when_not_diffing() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--deny=added");
+    cmd.assert()
+        .stderr(contains("`--deny` can only be used when diffing"))
+        .failure();
+}
+
+#[test]
+fn deny_changed_when_not_diffing() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--deny=changed");
+    cmd.assert()
+        .stderr(contains("`--deny` can only be used when diffing"))
+        .failure();
+}
+
+#[test]
+fn deny_removed_when_not_diffing() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--deny=removed");
+    cmd.assert()
+        .stderr(contains("`--deny` can only be used when diffing"))
+        .failure();
+}
+
+#[test]
+fn deny_combination_when_not_diffing() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--deny=added");
+    cmd.arg("--deny=changed");
+    cmd.arg("--deny=removed");
+    cmd.assert()
+        .stderr(contains("`--deny` can only be used when diffing"))
+        .failure();
+}
+
+#[test]
+fn deny_without_diff() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.1.0");
+    cmd.arg("v0.1.1");
+    cmd.arg("--deny=all");
+    cmd.assert().success();
+}
+
+#[test]
+fn deny_with_diff() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.1.0");
+    cmd.arg("v0.2.0");
+    cmd.arg("--deny=all");
+    cmd.assert()
+        .stderr(contains("The API diff is not allowed as per --deny"))
+        .failure();
+}
+
+#[test]
+fn deny_added_with_diff() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.1.0");
+    cmd.arg("v0.2.0");
+    cmd.arg("--deny=added");
+    cmd.assert()
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.1.0_to_v0.2.0.txt"
+        ))
+        .failure();
+}
+
+#[test]
+fn deny_changed_with_diff() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.1.0");
+    cmd.arg("v0.2.0");
+    cmd.arg("--deny=changed");
+    cmd.assert().failure();
+}
+
+#[test]
+fn deny_removed_with_diff() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.arg("--deny=removed");
+    cmd.assert()
+        .stderr(contains(
+            "The API diff is not allowed as per --deny: Removed items not allowed: [pub fn example_api::function(v1_param: Struct, v2_param: usize)]",
+        ))
+        .failure();
+}
+
+#[test]
+fn deny_with_invalid_arg() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.arg("--deny=invalid");
+    cmd.assert()
+        .stderr(contains("\"invalid\" isn't a valid value"))
+        .failure();
+}
+
+#[test]
+fn diff_public_items_with_manifest_path() {
+    let test_repo = TestRepo::new();
+    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+    cmd.arg("--manifest-path");
+    cmd.arg(format!(
+        "{}/Cargo.toml",
+        &test_repo.path.path().to_string_lossy()
+    ));
+    cmd.arg("--color=never");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.assert()
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.2.0_to_v0.3.0.txt"
+        ))
         .success();
 }
 
-#[serial]
 #[test]
-fn diff_public_items_from_files_no_changes() {
-    // Build ./target/doc/cargo_public_api.json
+fn diff_public_items_without_git_root() {
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.arg("--only-build-rustdoc-json");
-    cmd.assert().success();
+    cmd.arg("--manifest-path");
+    cmd.arg("/does/not/exist/Cargo.toml");
+    cmd.arg("--color=never");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.2.0");
+    cmd.arg("v0.3.0");
+    cmd.assert()
+        .stderr(predicates::str::starts_with(
+            "Error: No `.git` dir when starting from `",
+        ))
+        .failure();
+}
 
-    // Just a sanity check that --diff-rustdoc-json works at all
+#[test]
+fn diff_public_items_with_color() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--color=always");
+    cmd.arg("--diff-git-checkouts");
+    cmd.arg("v0.1.0");
+    cmd.arg("v0.2.0");
+    cmd.assert()
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.1.0_to_v0.2.0_colored.txt"
+        ))
+        .success();
+}
+
+// FIXME: This tests is ignored in CI due to some unknown issue with windows
+#[test]
+#[cfg_attr(all(target_family = "windows", in_ci), ignore)]
+fn list_public_items_with_color() {
+    let mut cmd = TestCmd::new();
+    cmd.arg("--color=always");
+    cmd.assert()
+        .stdout(include_str!(
+            "./expected-output/example_api_v0.3.0_colored.txt"
+        ))
+        .success();
+}
+
+#[test]
+fn diff_public_items_from_files() {
+    let old = rustdoc_json_path_for_crate("../test-apis/example_api-v0.1.0");
+    let new = rustdoc_json_path_for_crate("../test-apis/example_api-v0.2.0");
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
     cmd.arg("--diff-rustdoc-json");
-    cmd.arg("../target/doc/cargo_public_api.json");
-    cmd.arg("../target/doc/cargo_public_api.json");
+    cmd.arg(old);
+    cmd.arg(new);
     cmd.assert()
-        .stdout(
-            "Removed items from the public API
-=================================
-(none)
-
-Changed items in the public API
-===============================
-(none)
-
-Added items to the public API
-=============================
-(none)
-
-",
-        )
+        .stdout(include_str!(
+            "./expected-output/example_api_diff_v0.1.0_to_v0.2.0.txt"
+        ))
         .success();
 }
 
-#[serial]
 #[test]
 fn diff_public_items_missing_one_arg() {
-    let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.current_dir(test_crate_path());
+    let mut cmd = TestCmd::new();
     cmd.arg("--diff-git-checkouts");
     cmd.arg("v0.2.0");
     cmd.assert()
-        .stderr(predicates::str::contains(
+        .stderr(contains(
             "requires at least 2 values but only 1 was provided",
         ))
         .failure();
 }
 
-#[serial]
 #[test]
-fn list_public_items_markdown() {
+fn verbose() {
     let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
-    cmd.arg("--output-format=markdown");
+    cmd.arg("--manifest-path");
+    cmd.arg("../test-apis/lint_error/Cargo.toml");
+    cmd.arg("--verbose");
     cmd.assert()
-        .stdout(
-            "## Public API\n\
-             * `pub fn cargo_public_api::for_self_testing_purposes_please_ignore()`\n\
-             * `pub mod cargo_public_api`\n\
-             \n\
-             ",
-        )
+        .stdout(contains("Processing \""))
+        .stdout(contains("rustdoc JSON missing referenced item"))
         .success();
 }
 
@@ -262,34 +444,12 @@ fn short_help() {
     assert_presence_of_args_in_help(cmd);
 }
 
-fn assert_presence_of_own_library_items(mut cmd: Command) {
-    cmd.assert()
-        .stdout(
-            "pub fn cargo_public_api::for_self_testing_purposes_please_ignore()\n\
-             pub mod cargo_public_api\n\
-             ",
-        )
-        .success();
-}
-
 fn assert_presence_of_args_in_help(mut cmd: Command) {
     cmd.assert()
-        .stdout(predicates::str::contains("--with-blanket-implementations"))
-        .stdout(predicates::str::contains("--manifest-path"))
-        .stdout(predicates::str::contains("--diff-git-checkouts"))
+        .stdout(contains("--with-blanket-implementations"))
+        .stdout(contains("--manifest-path"))
+        .stdout(contains("--diff-git-checkouts"))
         .success();
-}
-
-fn ensure_test_crate_is_cloned() {
-    let path = test_crate_path();
-    if path.exists() {
-        print!("INFO: using ");
-    } else {
-        print!("INFO: cloning into ");
-        clone_test_crate(&path);
-    }
-    // Print info about repo when running like this: cargo test -- --nocapture
-    println!("'{}'", &path.to_string_lossy());
 }
 
 /// Helper to get the absolute path to a given path, relative to the current
@@ -300,30 +460,155 @@ fn current_dir_and<P: AsRef<Path>>(path: P) -> PathBuf {
     cur_dir
 }
 
-/// Helper to clone the test crate git repo to the proper place
-fn clone_test_crate(dest: &Path) {
-    let mut git = std::process::Command::new("git");
-    git.arg("clone");
-    git.arg("https://github.com/Enselic/public-api.git"); // Tests still use this old git and the old name `public_items`
-    git.arg("-b");
-    git.arg("v0.7.1");
-    git.arg("--single-branch");
-    git.arg(dest);
-    assert!(git.spawn().unwrap().wait().unwrap().success());
+/// Helper to initialize a test crate git repo. Each test gets its own git repo
+/// to use so that tests can run in parallel.
+fn initialize_test_repo(dest: &Path) {
+    test_utils::create_test_git_repo(dest, "../test-apis");
 }
 
-/// Path to the git cloned test crate we use to test the diffing functionality
-fn test_crate_path() -> PathBuf {
-    let mut path = get_cache_dir();
-    path.push("cargo-public-api-test-repo");
-    path
+#[test]
+fn cargo_public_api_with_features() -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(Debug)]
+    struct F<'a> {
+        all: bool,
+        none: bool,
+        features: &'a [&'a str],
+    }
+
+    impl<'a> F<'a> {
+        fn none(mut self) -> Self {
+            self.none = true;
+            self
+        }
+        fn all(mut self) -> Self {
+            self.all = true;
+            self
+        }
+        fn new(features: &'a [&'a str]) -> Self {
+            F {
+                all: false,
+                none: false,
+                features,
+            }
+        }
+    }
+
+    impl std::fmt::Display for F<'_> {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            if self.all {
+                write!(f, "all")?;
+            }
+            if self.none {
+                write!(f, "none")?;
+            }
+            for feat in self.features {
+                write!(f, "{feat}")?;
+            }
+            Ok(())
+        }
+    }
+
+    let root = cargo_metadata::MetadataCommand::new()
+        .no_deps()
+        .exec()?
+        .workspace_root;
+
+    for features in [
+        F::new(&[]).all(),
+        F::new(&[]).none(),
+        F::new(&["feature_a", "feature_b", "feature_c"]).none(),
+        F::new(&["feature_b"]).none(),
+        F::new(&["feature_c"]).none(), // includes `feature_b`
+    ] {
+        let expected_file = root.join(format!(
+            "cargo-public-api/tests/expected-output/features-feat{features}.txt"
+        ));
+
+        let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+        cmd.current_dir(root.join("test-apis/features"));
+
+        if features.none {
+            cmd.arg("--no-default-features");
+        }
+
+        if features.all {
+            cmd.arg("--all-features");
+        }
+
+        for feature in features.features {
+            cmd.args(["--features", feature]);
+        }
+
+        if std::env::var("BLESS").is_ok() {
+            let out = cmd.output().unwrap();
+            std::fs::write(expected_file, out.stdout).unwrap();
+        } else {
+            // Make into a string to show diff
+            let expected = String::from_utf8(
+                std::fs::read(&expected_file)
+                    .unwrap_or_else(|_| panic!("couldn't read file: {expected_file:?}")),
+            )
+            .unwrap();
+            cmd.assert().stdout(expected).success();
+        }
+    }
+    Ok(())
 }
 
-/// Where to put things that survives across test runs. For example a git cloned
-/// test crate. We don't want to clone it every time we run tests.
-fn get_cache_dir() -> PathBuf {
-    // See https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
-    option_env!("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
+/// A git repository that lives during the duration of a test. Having each test
+/// have its own git repository to test with makes tests runnable concurrently.
+struct TestRepo {
+    path: tempfile::TempDir,
+}
+
+impl TestRepo {
+    fn new() -> Self {
+        let tempdir = tempfile::tempdir().unwrap();
+        initialize_test_repo(tempdir.path());
+
+        Self { path: tempdir }
+    }
+
+    fn path(&self) -> &Path {
+        self.path.path()
+    }
+}
+
+/// Frequently a test needs to create a test repo and then run
+/// `cargo-public-api` on that repo. This helper constructs such a pair and
+/// pre-configures it, so that tests becomes shorter and more to-the-point.
+///
+/// It comes with a bunch of convenience methods ([`Self::arg()`], etc) to make
+/// test code simpler.
+struct TestCmd {
+    /// `cargo-public-api`
+    cmd: Command,
+
+    /// A short-lived temporary git repo used for tests. Each test typically has
+    /// its own repo so that tests can run in parallel.
+    test_repo: TestRepo,
+}
+
+impl TestCmd {
+    fn new() -> Self {
+        let test_repo = TestRepo::new();
+
+        let mut cmd = Command::cargo_bin("cargo-public-api").unwrap();
+        cmd.current_dir(&test_repo.path);
+
+        Self { cmd, test_repo }
+    }
+
+    pub fn test_repo_path(&self) -> &Path {
+        self.test_repo.path()
+    }
+
+    pub fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
+        self.cmd.arg(arg);
+        self
+    }
+
+    pub fn assert(&mut self) -> Assert {
+        self.cmd.assert()
+    }
 }

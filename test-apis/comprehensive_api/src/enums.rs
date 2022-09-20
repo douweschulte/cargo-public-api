@@ -5,6 +5,12 @@ pub enum SingleVariant {
     Variant,
 }
 
+pub enum EnumWithExplicitDiscriminants {
+    First = 1,
+    Second = 2,
+    TenPlusTen = 10 + 10,
+}
+
 pub enum DiverseVariants {
     Simple,
     Tuple(usize, bool),
@@ -17,4 +23,12 @@ where
     T: Display,
 {
     Variant { t: &'a T, d: D },
+}
+
+pub enum EnumWithStrippedTupleVariants {
+    Single(usize),
+    SingleHidden(#[doc(hidden)] usize),
+    Double(bool, bool),
+    DoubleFirstHidden(#[doc(hidden)] bool, bool),
+    DoubleSecondHidden(bool, #[doc(hidden)] bool),
 }

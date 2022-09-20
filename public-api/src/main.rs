@@ -1,3 +1,9 @@
+//! Simple wrapper around the library. For a much more sophisticated CLI, see
+//! <https://github.com/Enselic/cargo-public-api/blob/main/cargo-public-api/src/main.rs>.
+
+// deny in CI, only warn here
+#![warn(clippy::all, clippy::pedantic)]
+
 use std::io::{stdout, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
@@ -18,11 +24,16 @@ type Result<T> = std::result::Result<T, Error>;
 struct Args {
     help: bool,
     with_blanket_implementations: bool,
+    print_minimum_rustdoc_json_version: bool,
     files: Vec<PathBuf>,
 }
 
 fn main_() -> Result<()> {
     let args = args();
+    if args.print_minimum_rustdoc_json_version {
+        println!("{}", MINIMUM_RUSTDOC_JSON_VERSION);
+        return Ok(());
+    }
 
     let mut options = Options::default();
     options.with_blanket_implementations = args.with_blanket_implementations;
@@ -46,7 +57,7 @@ fn main_() -> Result<()> {
 fn print_public_api(path: &Path, options: Options) -> Result<()> {
     let json = &std::fs::read_to_string(path)?;
 
-    for public_item in public_api_from_rustdoc_json_str(json, options)? {
+    for public_item in public_api_from_rustdoc_json_str(json, options)?.items {
         writeln!(std::io::stdout(), "{}", public_item)?;
     }
 
@@ -55,12 +66,12 @@ fn print_public_api(path: &Path, options: Options) -> Result<()> {
 
 fn print_public_api_diff(old: &Path, new: &Path, options: Options) -> Result<()> {
     let old_json = std::fs::read_to_string(old)?;
-    let old_items = public_api_from_rustdoc_json_str(&old_json, options)?;
+    let old = public_api_from_rustdoc_json_str(&old_json, options)?;
 
     let new_json = std::fs::read_to_string(new)?;
-    let new_items = public_api_from_rustdoc_json_str(&new_json, options)?;
+    let new = public_api_from_rustdoc_json_str(&new_json, options)?;
 
-    let diff = PublicItemsDiff::between(old_items, new_items);
+    let diff = PublicItemsDiff::between(old.items, new.items);
     print_diff_with_headers(&diff, &mut stdout(), "Removed:", "Changed:", "Added:")?;
 
     Ok(())
@@ -121,7 +132,7 @@ If you insist of using this low-level utility and thin wrapper, you run it like 
 
 where RUSTDOC_JSON_FILE is the path to the output of
 
-    RUSTDOCFLAGS='-Z unstable-options --output-format json' cargo +nightly doc --lib --no-deps
+    cargo +nightly rustdoc --lib -- -Z unstable-options --output-format json
 
 which you can find in
 
@@ -154,6 +165,8 @@ fn args() -> Args {
     for arg in std::env::args_os().skip(1) {
         if arg == "--with-blanket-implementations" {
             args.with_blanket_implementations = true;
+        } else if arg == "--print-minimum-rustdoc-json-version" {
+            args.print_minimum_rustdoc_json_version = true;
         } else if arg == "--help" || arg == "-h" {
             args.help = true;
         } else {

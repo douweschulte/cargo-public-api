@@ -2,28 +2,53 @@
 #[no_mangle] #[link_section = ".custom"] pub static comprehensive_api::attributes::NO_MANGLE_WITH_CUSTOM_LINK_SECTION: usize
 #[non_exhaustive] pub enum comprehensive_api::attributes::NonExhaustive
 #[repr(C)] pub struct comprehensive_api::attributes::C
-pub async fn comprehensive_api::functions::async_fn() -> impl Future<Output = ()>
-pub const comprehensive_api::constants::CONST: &str
+pub async fn comprehensive_api::functions::async_fn() -> ()
+pub async fn comprehensive_api::functions::async_fn_ret_bool() -> bool
+pub const comprehensive_api::constants::CONST: &'static str
 pub const comprehensive_api::traits::AssociatedConst::CONST: bool
 pub const comprehensive_api::traits::AssociatedConstDefault::CONST_WITH_DEFAULT: bool
 pub const fn comprehensive_api::functions::const_fn()
 pub enum comprehensive_api::enums::DiverseVariants
+pub enum comprehensive_api::enums::EnumWithExplicitDiscriminants
 pub enum comprehensive_api::enums::EnumWithGenerics<'a, T, D: Debug> where T: Display
+pub enum comprehensive_api::enums::EnumWithStrippedTupleVariants
 pub enum comprehensive_api::enums::SingleVariant
 pub enum variant comprehensive_api::attributes::NonExhaustive::MoreToCome
 pub enum variant comprehensive_api::enums::DiverseVariants::Recursive
 pub enum variant comprehensive_api::enums::DiverseVariants::Simple
 pub enum variant comprehensive_api::enums::DiverseVariants::Struct
 pub enum variant comprehensive_api::enums::DiverseVariants::Tuple(usize, bool)
+pub enum variant comprehensive_api::enums::EnumWithExplicitDiscriminants::First = 1
+pub enum variant comprehensive_api::enums::EnumWithExplicitDiscriminants::Second = 2
+pub enum variant comprehensive_api::enums::EnumWithExplicitDiscriminants::TenPlusTen = 20
 pub enum variant comprehensive_api::enums::EnumWithGenerics::Variant
+pub enum variant comprehensive_api::enums::EnumWithStrippedTupleVariants::Double(bool, bool)
+pub enum variant comprehensive_api::enums::EnumWithStrippedTupleVariants::DoubleFirstHidden(_, bool)
+pub enum variant comprehensive_api::enums::EnumWithStrippedTupleVariants::DoubleSecondHidden(bool, _)
+pub enum variant comprehensive_api::enums::EnumWithStrippedTupleVariants::Single(usize)
+pub enum variant comprehensive_api::enums::EnumWithStrippedTupleVariants::SingleHidden(_)
 pub enum variant comprehensive_api::enums::SingleVariant::Variant
-pub extern crate comprehensive_api::rand
-pub fn comprehensive_api::RngCore::fill_bytes(&mut self, dest: &mut [u8])
-pub fn comprehensive_api::RngCore::next_u32(&mut self) -> u32
-pub fn comprehensive_api::RngCore::next_u64(&mut self) -> u64
-pub fn comprehensive_api::RngCore::try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error>
+pub extern crate comprehensive_api::example_api
+pub fn comprehensive_api::Plain::f()
+pub fn comprehensive_api::Plain::new() -> Plain
+pub fn comprehensive_api::Plain::s1(self)
+pub fn comprehensive_api::Plain::s2(&self)
+pub fn comprehensive_api::Plain::s3(&mut self)
+pub fn comprehensive_api::Plain::s4(&'a self)
+pub fn comprehensive_api::RenamedPlain::f()
+pub fn comprehensive_api::RenamedPlain::new() -> Plain
+pub fn comprehensive_api::RenamedPlain::s1(self)
+pub fn comprehensive_api::RenamedPlain::s2(&self)
+pub fn comprehensive_api::RenamedPlain::s3(&mut self)
+pub fn comprehensive_api::RenamedPlain::s4(&'a self)
 pub fn comprehensive_api::attributes::must_use() -> usize
-pub fn comprehensive_api::functions::dyn_arg(d: &std::io::Write + Send + 'static)
+pub fn comprehensive_api::exports::v0::foo()
+pub fn comprehensive_api::exports::v1::foo()
+pub fn comprehensive_api::exports::v1::foo2()
+pub fn comprehensive_api::functions::dyn_arg_one_trait(d: &dyn std::io::Write)
+pub fn comprehensive_api::functions::dyn_arg_one_trait_one_lifetime(d: &(dyn std::io::Write + 'static))
+pub fn comprehensive_api::functions::dyn_arg_two_traits(d: &(dyn std::io::Write + Send))
+pub fn comprehensive_api::functions::dyn_arg_two_traits_one_lifetime(d: &(dyn std::io::Write + Send + 'static))
 pub fn comprehensive_api::functions::fn_arg(f: impl Fn(bool, RenamedPlain) -> bool, f_mut: impl FnMut())
 pub fn comprehensive_api::functions::generic_arg<T>(t: T) -> T
 pub fn comprehensive_api::functions::generic_bound<T: Sized>(t: T) -> T
@@ -32,7 +57,7 @@ pub fn comprehensive_api::functions::inferred_lifetime(foo: &usize) -> usize
 pub fn comprehensive_api::functions::multiple_bounds<T>(t: T) where T: Debug + Display
 pub fn comprehensive_api::functions::multiple_bounds_inline<T: Debug + Display>(t: T)
 pub fn comprehensive_api::functions::one_arg(x: usize)
-pub fn comprehensive_api::functions::outlives<'a, 'b: 'a, 'c: 'b + 'a>(x: &'a bool, y: &'b i128, z: &'c Tuple) -> usize
+pub fn comprehensive_api::functions::outlives<'a, 'b: 'a, 'c: 'b + 'a>(x: &'a bool, y: &'b i128, z: &'c TupleStructSingle) -> usize
 pub fn comprehensive_api::functions::plain()
 pub fn comprehensive_api::functions::return_array() -> [u8; 2]
 pub fn comprehensive_api::functions::return_iterator() -> impl Iterator<Item = u32>
@@ -43,6 +68,7 @@ pub fn comprehensive_api::functions::return_tuple() -> (bool, Basic)
 pub fn comprehensive_api::functions::somewhere<T, U>(t: T, u: U) where T: Display, U: Debug
 pub fn comprehensive_api::functions::struct_arg(s: PrivateField)
 pub fn comprehensive_api::functions::synthetic_arg(t: impl Simple) -> impl Simple
+pub fn comprehensive_api::higher_ranked_trait_bounds::Foo::bar<T>() where T: Trait<'a>
 pub fn comprehensive_api::higher_ranked_trait_bounds::test1<T>() where for<'a> &'a T: Iterator
 pub fn comprehensive_api::higher_ranked_trait_bounds::test2<T>() where for<'a, 'b> &'a T: Trait<'b>
 pub fn comprehensive_api::higher_ranked_trait_bounds::test3<F>() where F: for<'a, 'b> Fn(&'a u8, &'b u8)
@@ -52,13 +78,26 @@ pub fn comprehensive_api::structs::Plain::s1(self)
 pub fn comprehensive_api::structs::Plain::s2(&self)
 pub fn comprehensive_api::structs::Plain::s3(&mut self)
 pub fn comprehensive_api::structs::Plain::s4(&'a self)
+pub fn comprehensive_api::structs::Unit::act()
 pub fn comprehensive_api::structs::WithLifetimeAndGenericParam::new(unit_ref: &'b Unit, t: String) -> Self
 pub fn comprehensive_api::traits::Simple::act()
+pub fn comprehensive_api::traits::TraitReferencingOwnAssociatedType::own_associated_type_output(&self) -> Self::OwnAssociatedType
+pub fn comprehensive_api::traits::TraitReferencingOwnAssociatedType::own_associated_type_output_explicit_as(&self) -> <Self as TraitReferencingOwnAssociatedType>::OwnAssociatedType
+pub fn comprehensive_api::traits::TraitWithGenerics::bar() -> <Self as TraitWithGenerics<T, U>>::Foo
 pub macro comprehensive_api::simple_macro!
 pub mod comprehensive_api
 pub mod comprehensive_api::attributes
 pub mod comprehensive_api::constants
 pub mod comprehensive_api::enums
+pub mod comprehensive_api::exports
+pub mod comprehensive_api::exports::recursion_1
+pub mod comprehensive_api::exports::recursion_1::recursion_2
+pub mod comprehensive_api::exports::recursion_2
+pub mod comprehensive_api::exports::recursion_2::recursion_1
+pub mod comprehensive_api::exports::recursion_glob_1
+pub mod comprehensive_api::exports::recursion_glob_2
+pub mod comprehensive_api::exports::v0
+pub mod comprehensive_api::exports::v1
 pub mod comprehensive_api::functions
 pub mod comprehensive_api::higher_ranked_trait_bounds
 pub mod comprehensive_api::impls
@@ -71,41 +110,61 @@ pub mod comprehensive_api::unions
 pub mut static comprehensive_api::statics::MUT_ANSWER: i8
 pub static comprehensive_api::statics::ANSWER: i8
 pub static comprehensive_api::statics::FUNCTION_POINTER: Option<fn(usize, i8) -> String>
+pub struct comprehensive_api::Plain
+pub struct comprehensive_api::RenamedPlain
 pub struct comprehensive_api::StructInPrivateMod
+pub struct comprehensive_api::higher_ranked_trait_bounds::Bar<'a>
 pub struct comprehensive_api::higher_ranked_trait_bounds::Foo<'a>
 pub struct comprehensive_api::structs::ConstArg<T, const N: usize>
 pub struct comprehensive_api::structs::Plain
 pub struct comprehensive_api::structs::PrivateField
-pub struct comprehensive_api::structs::Tuple
+pub struct comprehensive_api::structs::TupleStructDouble(pub usize, pub bool)
+pub struct comprehensive_api::structs::TupleStructDoubleWithHidden(_, pub bool)
+pub struct comprehensive_api::structs::TupleStructDoubleWithPrivate(_, pub bool)
+pub struct comprehensive_api::structs::TupleStructSingle(pub usize)
 pub struct comprehensive_api::structs::Unit
 pub struct comprehensive_api::structs::WithLifetimeAndGenericParam<'a, T>
 pub struct comprehensive_api::structs::WithTraitBounds<T: Display + Debug>
+pub struct field comprehensive_api::Plain::x: usize
+pub struct field comprehensive_api::RenamedPlain::x: usize
 pub struct field comprehensive_api::attributes::C::b: bool
 pub struct field comprehensive_api::enums::DiverseVariants::Recursive::child: Box<DiverseVariants>
 pub struct field comprehensive_api::enums::DiverseVariants::Struct::x: usize
 pub struct field comprehensive_api::enums::DiverseVariants::Struct::y: SingleVariant
 pub struct field comprehensive_api::enums::EnumWithGenerics::Variant::d: D
 pub struct field comprehensive_api::enums::EnumWithGenerics::Variant::t: &'a T
+pub struct field comprehensive_api::higher_ranked_trait_bounds::Bar::bar: &'a (dyn for<'b> Trait<'b> + Unpin)
+pub struct field comprehensive_api::higher_ranked_trait_bounds::Bar::baz: &'a (dyn Unpin + for<'b> Trait<'b>)
 pub struct field comprehensive_api::higher_ranked_trait_bounds::Foo::some_func: for<'c> fn(val: &'c i32) -> i32
+pub struct field comprehensive_api::higher_ranked_trait_bounds::Foo::some_trait: &'a dyn for<'b> Trait<'b>
 pub struct field comprehensive_api::structs::ConstArg::items: [T; N]
 pub struct field comprehensive_api::structs::Plain::x: usize
-pub struct field comprehensive_api::structs::Tuple::0: usize
 pub struct field comprehensive_api::structs::WithLifetimeAndGenericParam::t: T
 pub struct field comprehensive_api::structs::WithLifetimeAndGenericParam::unit_ref: &'a Unit
 pub struct field comprehensive_api::unions::Basic::x: usize
 pub struct field comprehensive_api::unions::Basic::y: usize
-pub trait comprehensive_api::RngCore
+pub trait comprehensive_api::higher_ranked_trait_bounds::B<'x>
 pub trait comprehensive_api::higher_ranked_trait_bounds::Trait<'x>
 pub trait comprehensive_api::traits::AssociatedConst
 pub trait comprehensive_api::traits::AssociatedConstDefault
 pub trait comprehensive_api::traits::AssociatedType
 pub trait comprehensive_api::traits::Empty
 pub trait comprehensive_api::traits::Simple
+pub trait comprehensive_api::traits::TraitReferencingOwnAssociatedType
+pub trait comprehensive_api::traits::TraitWithGenerics<T, U>
 pub type comprehensive_api::traits::AssociatedType::Type
+pub type comprehensive_api::traits::TraitReferencingOwnAssociatedType::OwnAssociatedType
+pub type comprehensive_api::traits::TraitWithGenerics::Foo
 pub type comprehensive_api::typedefs::RedefinedResult<T, E> = Result<T, E>
 pub type comprehensive_api::typedefs::TypedefPlain = Plain
 pub union comprehensive_api::unions::Basic
 pub unsafe fn comprehensive_api::functions::unsafe_fn()
 pub unsafe trait comprehensive_api::traits::UnsafeTrait
-pub use comprehensive_api::Plain
-pub use comprehensive_api::RenamedPlain
+pub use comprehensive_api::<<example_api::*>>
+pub use comprehensive_api::StructV2
+pub use comprehensive_api::exports::recursion_1::recursion_2::recursion_1
+pub use comprehensive_api::exports::recursion_2::recursion_1::recursion_2
+pub use comprehensive_api::exports::recursion_glob_1::<<super::recursion_glob_1::*>>
+pub use comprehensive_api::exports::recursion_glob_2::<<super::recursion_glob_2::*>>
+pub use comprehensive_api::my_i32
+pub use comprehensive_api::u32

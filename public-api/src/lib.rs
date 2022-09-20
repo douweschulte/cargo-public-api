@@ -1,6 +1,9 @@
-//! This library gives you a the public API of a library crate, in the form of a
+//! This library gives you the public API of a library crate, in the form of a
 //! list of public items in the crate. Public items are items that other crates
-//! can use.
+//! can use. Diffing is also supported.
+//!
+//! If you want a convenient CLI for this library, you should use [cargo
+//! public-api](https://github.com/Enselic/cargo-public-api).
 //!
 //! As input to the library, a special output format from `cargo doc` is used,
 //! which goes by the name **rustdoc JSON**. Currently, only `cargo doc` from
@@ -8,7 +11,7 @@
 //! **rustdoc JSON** like this:
 //!
 //! ```bash
-//! RUSTDOCFLAGS='-Z unstable-options --output-format json' cargo +nightly doc --lib --no-deps
+//! cargo +nightly rustdoc --lib -- -Z unstable-options --output-format json
 //! ```
 //!
 //! The main entry point to the library is [`public_api_from_rustdoc_json_str`],
@@ -20,21 +23,21 @@
 //! versions of the same public APIs.
 //!
 //! ## List all public items of a crate (the public API)
-//! ```
+//! ```no_run
 #![doc = include_str!("../examples/list_public_api.rs")]
 //! ```
 //!
 //! ## Diff two versions of a public API
-//! ```
+//! ```no_run
 #![doc = include_str!("../examples/diff_public_api.rs")]
 //! ```
 //!
 //! The most comprehensive example code on how to use the library can be found
 //! in the thin binary wrapper around the library, see
-//! <https://github.com/Enselic/public-api/blob/main/src/main.rs>.
+//! <https://github.com/Enselic/cargo-public-api/blob/main/public-api/src/main.rs>.
 
-#![deny(missing_docs, dead_code)]
-#![deny(clippy::all, clippy::pedantic)]
+// deny in CI, only warn here
+#![warn(clippy::all, clippy::pedantic, missing_docs)]
 
 mod error;
 mod intermediate_public_item;
@@ -58,7 +61,7 @@ pub use item_iterator::PublicItem;
 /// The rustdoc JSON format is still changing, so every now and then we update
 /// this library to support the latest format. If you use this version of
 /// nightly or later, you should be fine.
-pub const MINIMUM_RUSTDOC_JSON_VERSION: &str = "nightly-2022-05-19";
+pub const MINIMUM_RUSTDOC_JSON_VERSION: &str = "nightly-2022-09-08";
 
 /// Contains various options that you can pass to [`public_api_from_rustdoc_json_str`].
 #[derive(Copy, Clone, Debug)]
@@ -68,7 +71,7 @@ pub struct Options {
     /// for T`, `impl<T> Borrow<T> for T`, and `impl<T, U> Into<U> for T where
     /// U: From<T>` are included in the list of public items of a crate.
     ///
-    /// The default value is `false` since the the vast majority of users will
+    /// The default value is `false` since the vast majority of users will
     /// find the presence of these items to just constitute noise, even if they
     /// formally are part of the public API of a crate.
     pub with_blanket_implementations: bool,
@@ -110,7 +113,7 @@ impl Default for Options {
 /// builds the rustdoc JSON for you and then invokes this function. If you don't
 /// want to use that wrapper, use
 /// ```bash
-/// RUSTDOCFLAGS='-Z unstable-options --output-format json' cargo +nightly doc --lib --no-deps
+/// cargo +nightly rustdoc --lib -- -Z unstable-options --output-format json
 /// ```
 /// to generate the rustdoc JSON that this function takes as input. The output
 /// is put in `./target/doc/your_library.json`.
@@ -126,16 +129,39 @@ impl Default for Options {
 pub fn public_api_from_rustdoc_json_str(
     rustdoc_json_str: &str,
     options: Options,
-) -> Result<Vec<PublicItem>> {
+) -> Result<PublicApi> {
     let crate_ = deserialize_without_recursion_limit(rustdoc_json_str)?;
 
-    let mut public_api: Vec<_> = item_iterator::public_api_in_crate(&crate_, options).collect();
+    let mut public_api = item_iterator::public_api_in_crate(&crate_, options);
 
     if options.sorted {
-        public_api.sort();
+        public_api.items.sort();
     }
 
     Ok(public_api)
+}
+
+/// Return type of [`public_api_from_rustdoc_json_str`].
+#[derive(Debug)]
+#[non_exhaustive] // More fields might be added in the future
+pub struct PublicApi {
+    /// The items that constitutes the public API. An "item" is for example a
+    /// function, a struct, a struct field, an enum, an enum variant, a module,
+    /// etc...
+    pub items: Vec<PublicItem>,
+
+    /// The rustdoc JSON IDs of missing but referenced items. Intended for use
+    /// with `--verbose` flags or similar.
+    ///
+    /// In some cases, a public item might be referenced from another public
+    /// item (e.g. a `mod`), but is missing from the rustdoc JSON file. This
+    /// occurs for example in the case of re-exports of external modules (see
+    /// <https://github.com/Enselic/cargo-public-api/issues/103>). The entries
+    /// in this Vec are what IDs that could not be found.
+    ///
+    /// The exact format of IDs are to be considered an implementation detail
+    /// and must not be be relied on.
+    pub missing_item_ids: Vec<String>,
 }
 
 /// Helper to deserialize the JSON with `serde_json`, but with the recursion

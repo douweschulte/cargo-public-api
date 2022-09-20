@@ -1,7 +1,7 @@
 use std::fmt::{Debug, Display};
 
 use crate::{
-    structs::{PrivateField, Tuple},
+    structs::{PrivateField, TupleStructSingle, Unit},
     traits::Simple,
     unions::Basic,
     RenamedPlain,
@@ -61,7 +61,11 @@ pub fn inferred_lifetime(foo: &'_ usize) -> usize {
     *foo
 }
 
-pub fn outlives<'a, 'b: 'a, 'c: 'b + 'a>(x: &'a bool, y: &'b i128, z: &'c Tuple) -> usize {
+pub fn outlives<'a, 'b: 'a, 'c: 'b + 'a>(
+    x: &'a bool,
+    y: &'b i128,
+    z: &'c TupleStructSingle,
+) -> usize {
     if *x && *y > 0 {
         z.0
     } else {
@@ -73,7 +77,9 @@ pub fn synthetic_arg(t: impl Simple) -> impl Simple {
     t
 }
 
-pub fn impl_multiple<T>(t: impl Simple + AsRef<T>) -> impl Simple {}
+pub fn impl_multiple<T>(t: impl Simple + AsRef<T>) -> impl Simple {
+    Unit
+}
 
 pub fn somewhere<T, U>(t: T, u: U)
 where
@@ -91,8 +97,18 @@ where
 
 pub fn multiple_bounds_inline<T: Debug + Display>(t: T) {}
 
-pub fn dyn_arg(d: &(dyn std::io::Write + Send + 'static)) {}
+pub fn dyn_arg_one_trait(d: &dyn std::io::Write) {}
+
+pub fn dyn_arg_one_trait_one_lifetime(d: &(dyn std::io::Write + 'static)) {}
+
+pub fn dyn_arg_two_traits(d: &(dyn std::io::Write + Send)) {}
+
+pub fn dyn_arg_two_traits_one_lifetime(d: &(dyn std::io::Write + Send + 'static)) {}
 
 pub unsafe fn unsafe_fn() {}
 
 pub async fn async_fn() {}
+
+pub async fn async_fn_ret_bool() -> bool {
+    true
+}

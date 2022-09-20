@@ -1,29 +1,33 @@
 [package]
-description = "List and diff the public API of Rust library crates between releases and commits. Allows you to detect breaking API changes and semver violations."
-documentation = "https://docs.rs/cargo-public-api"
 edition = "2021"
-homepage = "https://github.com/Enselic/cargo-public-api"
-license = "MIT"
 name = "cargo-public-api"
-readme = "../README.md"
-repository = "https://github.com/Enselic/cargo-public-api"
-version = "0.12.0"
+version = "0.19.0"
 default-run = "cargo-public-api"
+description = "List and diff the public API of Rust library crates between releases and commits. Detect breaking API changes and semver violations."
+homepage = "https://github.com/Enselic/cargo-public-api"
+documentation = "https://docs.rs/cargo-public-api"
+readme = "../README.md"
+license = "MIT"
+repository = "https://github.com/Enselic/cargo-public-api"
 
 [dependencies]
-yansi = "0.5"
+nu-ansi-term = "0.46.0"
 anyhow = "1.0.53"
 atty = "0.2.14"
-cargo_metadata = "0.14.2"
-cargo_toml = "0.11.4"
 clap = { version = "3.1.2", features = ["derive"] }
 diff = "0.1.12"
+thiserror = "1.0.29"
+
+[dependencies.rustdoc-json]
+path = "../rustdoc-json"
+version = "0.4.0"
 
 [dependencies.public-api]
 path = "../public-api"
-version = "0.12.0"
+version = "0.19.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
 predicates = "2.1.1"
-serial_test = "0.6.0"
+tempfile = "3.3.0"
+cargo_metadata = "0.14.2"

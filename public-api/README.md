@@ -1,8 +1,12 @@
+# You probably want the CLI
+
+This is a low level Rust library. You probably want to use this high level and convenient CLI: [`cargo public-api`](https://github.com/Enselic/cargo-public-api).
+
 # public-api
 
 List and diff the public API of Rust library crates by analyzing rustdoc JSON output files from the nightly toolchain.
 
-This library is the backbone of [`cargo public-api`](https://github.com/Enselic/cargo-public-api/tree/main/cargo-public-api).
+This library is the backbone of [`cargo public-api`](https://github.com/Enselic/cargo-public-api).
 
 # Usage
 
@@ -12,7 +16,7 @@ The library comes with a thin bin wrapper that can be used to explore the capabi
 # Build and install the thin bin wrapper with a recent stable Rust toolchain
 cargo install public-api
 
-# Install nightly-2022-05-19 or later so you can build up-to-date rustdoc JSON files
+# Install nightly-2022-09-08 or later so you can build up-to-date rustdoc JSON files
 rustup install nightly
 ```
 
@@ -23,7 +27,7 @@ To list all items that form the public API of your Rust library:
 ```bash
 # Generate rustdoc JSON for your own Rust library
 % cd ~/src/your_library
-% RUSTDOCFLAGS='-Z unstable-options --output-format json' cargo +nightly doc --lib --no-deps
+% cargo +nightly rustdoc --lib -- -Z unstable-options --output-format json
 
 # List all items in the public API of your Rust library
 % public-api ./target/doc/your_library.json

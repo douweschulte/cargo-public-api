@@ -1,12 +1,30 @@
 [workspace]
 members = [
+    # Helper crate to build rustdoc JSON
+    "rustdoc-json",
+
+    # Takes rustdoc JSON as input and outputs the corresponding public API
+    "public-api",
+
+    # High-level CLI for "rustdoc-json" and "public-api"
     "cargo-public-api",
-    "public-api"
+
+    # Test utilities. Not published to crates.io.
+    "test-utils",
 ]
 
-# Test APIs can't be part of the workspace because some test API crates use
-# different directories but the same name (e.g. `example_api`), which cargo does
-# not allow.
+# Test APIs can't be part of the workspace because
+#
+#  * We do not want them to be built when someone does e.g. `cargo build`
+#
+#  * We do not want them to be part of Cargo.lock
+#
+#  * Some test crates use different directories but the same name (e.g.
+#    `example_api`), which cargo does not allow.
+#
+#  * We do not want the test-apis to share Cargo.lock since our tests run in
+#    parallel
+#
 exclude = [
     # Contains a public API that aim so to contain all public API item and
     # variants (with and without generics etc etc)
@@ -20,8 +38,13 @@ exclude = [
     # Contains different versions of the same small API. Used mainly to test
     # test the API-diffing functionality of this library.
     "test-apis/example_api-v0.1.0",
+    "test-apis/example_api-v0.1.1",
     "test-apis/example_api-v0.2.0",
+    "test-apis/example_api-v0.3.0",
 
-    # git repo used in tests.
-    "target/tmp/cargo-public-api-test-repo",
+    # To test that we pass --cap-lints when building rustdoc JSON
+    "test-apis/lint_error",
+
+    # Test for feature flags
+    "test-apis/features",
 ]

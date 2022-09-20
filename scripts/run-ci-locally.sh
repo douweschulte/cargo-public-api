@@ -9,8 +9,10 @@ cargo fmt -- --check
 
 RUSTDOCFLAGS='--deny warnings' cargo doc --locked --no-deps
 
-cargo clippy --locked --all-targets --all-features -- --deny clippy::all --deny clippy::pedantic
+scripts/cargo-clippy.sh
 
 cargo test --locked
+
+./scripts/check-public-apis.sh
 
 ./scripts/test-invocation-variants.sh

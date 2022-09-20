@@ -1,7 +1,7 @@
 use crate::render;
 use std::rc::Rc;
 
-use rustdoc_types::{Crate, Item, ItemEnum};
+use rustdoc_types::{Id, Item, Type};
 
 use crate::tokens::Token;
 
@@ -9,11 +9,37 @@ use crate::tokens::Token;
 /// It wraps a single [Item] but adds additional calculated values to make it
 /// easier to work with. Later, one [`Self`] will be converted to exactly one
 /// [`crate::PublicItem`].
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IntermediatePublicItem<'a> {
     /// The item we are effectively wrapping.
     pub item: &'a Item,
-    pub root: &'a Crate,
+
+    /// The name of the item. Normally this is [Item::name]. But in the case of
+    /// renamed imports (`pub use other::item as foo;`) it is the new name.
+    pub name: String,
+
+    /// Sometimes an item references other items via ID that we do not include
+    /// in the output. Currently this only happens for tuple structs (both
+    /// regular and enum variants). The reason we can get away with that is
+    /// because the tuple type already contains the full info, so also listing
+    /// fields as individual items is just noise.
+    ///
+    /// To be more concrete: It is sufficient to list the public API of `pub
+    /// struct Foo(bool, u32)` as
+    /// ```txt
+    /// pub struct root::Foo(bool, u32)
+    /// ```
+    /// because listing it as
+    /// ```txt
+    /// pub struct root::Foo(bool, u32)
+    /// pub struct field root::Foo::0: bool
+    /// pub struct field root::Foo::1: u32
+    /// ```
+    /// does not convey any more information.
+    ///
+    /// This special case requires us to pre-resolve the IDs however, and that
+    /// is what this field is for.
+    pub pre_resolved_fields: Vec<Option<&'a Type>>,
 
     /// The parent item. If [Self::item] is e.g. an enum variant, then the
     /// parent is an enum. We follow the chain of parents to be able to know the
@@ -25,10 +51,16 @@ impl<'a> IntermediatePublicItem<'a> {
     #[must_use]
     pub fn new(
         item: &'a Item,
-        root: &'a Crate,
+        name: String,
+        pre_resolved_fields: Vec<Option<&'a Type>>,
         parent: Option<Rc<IntermediatePublicItem<'a>>>,
     ) -> Self {
-        Self { item, root, parent }
+        Self {
+            item,
+            name,
+            pre_resolved_fields,
+            parent,
+        }
     }
 
     #[must_use]
@@ -48,17 +80,9 @@ impl<'a> IntermediatePublicItem<'a> {
         path
     }
 
-    /// Some items do not use item.name. Handle that.
     #[must_use]
-    pub fn get_effective_name(&'a self) -> String {
-        match &self.item.inner {
-            // An import uses its own name (which can be different from the name of
-            // the imported item)
-            ItemEnum::Import(i) => &i.name,
-
-            _ => self.item.name.as_deref().unwrap_or("<<no_name>>"),
-        }
-        .to_owned()
+    pub fn path_contains_id(&self, id: &'a Id) -> bool {
+        self.path().iter().any(|m| m.item.id == *id)
     }
 
     pub fn render_token_stream(&self) -> Vec<Token> {
