@@ -11,7 +11,7 @@ version = "0.12.0"
 default-run = "cargo-public-api"
 
 [dependencies]
-ansi_term = "0.12.1"
+yansi = "0.5"
 anyhow = "1.0.53"
 atty = "0.2.14"
 cargo_metadata = "0.14.2"

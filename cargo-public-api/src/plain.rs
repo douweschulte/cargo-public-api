@@ -1,7 +1,7 @@
 use std::io::{Result, Write};
 
-use ansi_term::{ANSIString, ANSIStrings, Color, Style};
 use public_api::{diff::PublicItemsDiff, tokens::Token, PublicItem};
+use yansi::{Color, Paint};
 
 use crate::{
     output_formatter::{print_items_with_header, OutputFormatter},
@@ -81,65 +81,56 @@ impl OutputFormatter for Plain {
 }
 
 fn color_item(item: &public_api::PublicItem) -> String {
-    color_token_stream(item.tokens(), None)
+    color_token_stream(item.tokens())
 }
 
-fn color_token_stream<'a>(tokens: impl Iterator<Item = &'a Token>, bg: Option<Color>) -> String {
-    let styled = tokens.map(|t| color_item_token(t, bg)).collect::<Vec<_>>();
-    ANSIStrings(&styled).to_string()
+fn color_token_stream<'a>(tokens: impl Iterator<Item = &'a Token>) -> String {
+    tokens.map(|t| color_item_token(t).to_string()).collect()
 }
 
 /// Color the given Token to render it with a nice syntax highlighting. The
 /// theme is inspired by dark+ in VS Code and uses the default colors from the
 /// terminal to always provide a readable and consistent color scheme.
 /// An extra color can be provided to be used as background color.
-fn color_item_token(token: &Token, bg: Option<Color>) -> ANSIString<'_> {
-    let style = |colour: Style, text: &str| {
-        if let Some(bg) = bg {
-            colour.on(bg).paint(text.to_string())
-        } else {
-            colour.paint(text.to_string())
-        }
-    };
+fn color_item_token(token: &Token) -> Paint<&str> {
     #[allow(clippy::match_same_arms)]
     match token {
-        Token::Symbol(text) => style(Style::default(), text),
-        Token::Qualifier(text) => style(Color::Blue.into(), text),
-        Token::Kind(text) => style(Color::Blue.into(), text),
-        Token::Whitespace => style(Style::default(), " "),
-        Token::Identifier(text) => style(Color::Cyan.into(), text),
-        Token::Annotation(text) => style(Style::default(), text),
-        Token::Self_(text) => style(Color::Blue.into(), text),
-        Token::Function(text) => style(Color::Yellow.into(), text),
-        Token::Lifetime(text) => style(Color::Blue.into(), text),
-        Token::Keyword(text) => style(Color::Blue.into(), text),
-        Token::Generic(text) => style(Color::Green.into(), text),
-        Token::Primitive(text) => style(Color::Green.into(), text),
-        Token::Type(text) => style(Color::Green.into(), text),
+        Token::Symbol(text) => Paint::default(text),
+        Token::Qualifier(text) => Paint::blue(text),
+        Token::Kind(text) => Paint::blue(text),
+        Token::Whitespace => Paint::new(" "),
+        Token::Identifier(text) => Paint::cyan(text),
+        Token::Annotation(text) => Paint::default(text),
+        Token::Self_(text) => Paint::blue(text),
+        Token::Function(text) => Paint::yellow(text),
+        Token::Lifetime(text) => Paint::blue(text),
+        Token::Keyword(text) => Paint::blue(text),
+        Token::Generic(text) => Paint::green(text),
+        Token::Primitive(text) => Paint::green(text),
+        Token::Type(text) => Paint::green(text),
     }
 }
 
 /// Returns a styled string similar to `color_item_token`, but where whole tokens are highlighted if
 /// they contain a difference.
 fn color_item_with_diff(diff_slice: &[diff::Result<&&Token>], is_old_item: bool) -> String {
-    let styled_strings = diff_slice
+    diff_slice
         .iter()
         .filter_map(|diff_result| match diff_result {
             diff::Result::Left(&token) => is_old_item.then(|| {
-                Color::Fixed(9)
-                    .on(Color::Fixed(52))
+                Paint::new(token.text())
+                    .fg(Color::Fixed(9))
+                    .bg(Color::Fixed(52))
                     .bold()
-                    .paint(token.text())
             }),
-            diff::Result::Both(&token, _) => Some(color_item_token(token, None)),
+            diff::Result::Both(&token, _) => Some(color_item_token(token)),
             diff::Result::Right(&token) => (!is_old_item).then(|| {
-                Color::Fixed(10)
-                    .on(Color::Fixed(22))
+                Paint::new(token.text())
+                    .fg(Color::Fixed(10))
+                    .bg(Color::Fixed(22))
                     .bold()
-                    .paint(token.text())
             }),
         })
-        .collect::<Vec<_>>();
-
-    ANSIStrings(&styled_strings).to_string()
+        .map(|i| i.to_string())
+        .collect()
 }
